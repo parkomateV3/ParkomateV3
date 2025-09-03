@@ -536,8 +536,6 @@ function perMinuteChart(id, data) {
         dateFields: ["valueX"]
     });
 
-    var easing = am5.ease.linear;
-
     window.last_hour_data_chart = perminutechart.container.children.push(am5xy.XYChart.new(perminutechart, {
         focusable: true,
         panX: true,
@@ -565,8 +563,26 @@ function perMinuteChart(id, data) {
         tooltip: am5.Tooltip.new(perminutechart, {})
     }));
 
+    xAxis.children.push(am5.Label.new(perminutechart, {
+        text: "Time",
+        x: am5.p50,
+        centerX: am5.p50,
+        paddingTop: 5
+    }));
+
     var yAxis = window.last_hour_data_chart.yAxes.push(am5xy.ValueAxis.new(perminutechart, {
         renderer: am5xy.AxisRendererY.new(perminutechart, {})
+    }));
+
+    // Add Y-axis label
+    yAxis.children.unshift(am5.Label.new(perminutechart, {
+        text: chartview == 1 ? "Occupancy" : "Available",       // <-- change as needed
+        rotation: -90,
+        y: am5.p50,
+        centerY: am5.p50,
+        // x: am5.p50,
+        centerX: am5.p50,
+        paddingLeft: 5
     }));
 
     if (theme == 'dark') {

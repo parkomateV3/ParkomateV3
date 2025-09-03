@@ -41,3 +41,6 @@ Route::get('v1/get_vehicle_count', [apiController::class, 'getVehicleCount']);
 Route::post('v1/upload_image', [apiController::class, 'uploadImage']);
 Route::post('v1/test_api', [apiController::class, 'testApi']);
 // Route::get('getDisplaySymbol', [apiController::class, 'getDisplaySymbol']);
+
+// image upload
+Route::post('v1/images-upload', [apiController::class, 'imagesUpload']);

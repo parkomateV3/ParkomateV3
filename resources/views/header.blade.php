@@ -89,6 +89,9 @@
             <a href="{{ route('sensor.index') }}">Senors</a>
           </li>
           <li>
+            <a href="{{ route('detectiontype') }}">Detection Type <br> Site</a>
+          </li>
+          <li>
             <a href="{{ route('eecsdevice.index') }}">EECS Devices</a>
           </li>
           <li>
@@ -120,6 +123,12 @@
           </li>
           <li>
             <a href="{{ route('entries.index') }}">Table Entries</a>
+          </li>
+          <li>
+            <a href="{{ route('processor.index') }}">Processor Data</a>
+          </li>
+          <li>
+            <a href="{{ route('camerainfo.index') }}">Camera Info</a>
           </li>
           @if(Auth::user()->role_id == 1)
           <li>

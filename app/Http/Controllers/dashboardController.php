@@ -1191,7 +1191,7 @@ class dashboardController extends Controller
                 $dataLoggingFloors = eece_data_logging_floor::where('floor_id', $floor->floor_id)->whereDate('updated_at', Carbon::today())->get()->groupBy('type');
 
                 foreach ($detectionList as $typeId) {
-                    $typeName = getTypeName($typeId);
+                    $typeName = getTypeNameForSite($typeId);
 
                     $total = isset($maxcount[$typeId]) ? (int) $maxcount[$typeId] : 0;
                     $occupied = isset($measuredcount[$typeId]) ? (int) $measuredcount[$typeId] : 0;
@@ -1261,7 +1261,7 @@ class dashboardController extends Controller
                     }
 
                     $inOutData[] = [
-                        'type' => getTypeName($typeId),
+                        'type' => getTypeNameForSite($typeId),
                         'in' => $in,
                         'out' => $out,
                     ];
@@ -1301,7 +1301,7 @@ class dashboardController extends Controller
                 }
 
                 $inOutData[] = [
-                    'type' => getTypeName($typeId),
+                    'type' => getTypeNameForSite($typeId),
                     'in' => $in,
                     'out' => $out,
                 ];
@@ -1588,7 +1588,7 @@ class dashboardController extends Controller
     {
         $site_id = Auth::user()->site_id;
         $siteType = getSiteType($site_id);
-        if ($siteType == "eecs" || $siteType == "slot_reservation") {
+        if ($siteType == "slot_reservation") {
             return redirect('dashboard/404');
         }
         $access = Auth::user()->access;
@@ -1600,6 +1600,9 @@ class dashboardController extends Controller
         }
         if ($flag) {
             $active = "detailed-view";
+            if ($siteType == "eecs") {
+                return view('dashboard.eecsdetailedview', compact('active'));
+            }
             return view('dashboard.detailedview', compact('active'));
         } else {
             return redirect('noaccess');
@@ -2301,9 +2304,19 @@ class dashboardController extends Controller
     {
         // return response()->json(['data' => $req->value]);
         $site_id = Auth::user()->site_id;
-        $userData = User::where('site_id', $site_id)->first();
-        $userData->chart_view = $req->value;
-        if ($userData->update()) {
+        // $userData = User::where('site_id', $site_id)->first();
+        // $userData->chart_view = $req->value;
+        // if ($userData->update()) {
+        //     return response()->json(['status' => 'success']);
+        // } else {
+        //     return response()->json(['status' => 'error']);
+        // }
+
+        $updated = DB::table('users')
+            ->where('site_id', $site_id)
+            ->update(['chart_view' => $req->value]);
+
+        if ($updated) {
             return response()->json(['status' => 'success']);
         } else {
             return response()->json(['status' => 'error']);

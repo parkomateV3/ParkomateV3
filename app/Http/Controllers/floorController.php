@@ -9,6 +9,7 @@ use App\Models\floor_data_by_day;
 use App\Models\floor_data_by_hour;
 use App\Models\floor_data_by_minute;
 use App\Models\floor_info;
+use App\Models\Objects;
 use App\Models\sensor_data_logging;
 use App\Models\sensor_info;
 use App\Models\sensor_reservation;
@@ -309,5 +310,246 @@ class floorController extends Controller
 
         // print_r($updatedJsonString);
         return $updatedJsonString;
+    }
+
+    //
+    public function floorMapDetails($floor_id)
+    {
+        $active = "floor-map";
+
+        $data = floor_info::where("floor_id", $floor_id)->first();
+        if (
+            $data == null ||
+            $data == "" ||
+            $data->floor_map_coordinate == null ||
+            $data->floor_map_coordinate == ""
+        ) {
+        } else {
+            $dimension = explode(
+                ",",
+                $data->floor_image_sensor_mapping_dimenssion
+            );
+            $car_scale = explode(",", $data->car_scale);
+            $floor_image = $data->floor_image_sensor_mapping;
+            $label_size = $data->label_properties;
+            $coordinates = json_decode($data->floor_map_coordinate, true);
+            $status = null;
+            foreach ($coordinates as &$c) {
+                $status = 1;
+                $number = 1;
+                if ($number != null || $number != "") {
+                    $c["label"] = $c["label"] . " - " . $number;
+                }
+                $c["status"] = $status;
+            }
+            unset($c);
+            return view(
+                "floormap.floormapDetails",
+                compact(
+                    "coordinates",
+                    "car_scale",
+                    "dimension",
+                    "floor_image",
+                    "active",
+                    "floor_id",
+                    "label_size"
+                )
+            );
+        }
+        // return view('floormap.floormap', compact('active'));
+    }
+
+
+    public function show_add_car_form($floor_id)
+    {
+        try {
+            $active = "floor-map";
+            $data = floor_info::where("floor_id", $floor_id)->first();
+
+            if (
+                $data == null ||
+                $data->floor_map_coordinate == null ||
+                $data->floor_map_coordinate == ""
+            ) {
+                return back()->with([
+                    'errortitle' => 'Invalid Floor',
+                    'errormessage' => 'Floor map data not available.'
+                ]);
+            }
+
+            $dimension = explode(",", $data->floor_image_sensor_mapping_dimenssion);
+            $car_scale = explode(",", $data->car_scale);
+            $floor_image = $data->floor_image_sensor_mapping;
+            $label_size = $data->label_properties;
+            $coordinates = json_decode($data->floor_map_coordinate, true);
+            $status = null;
+
+            foreach ($coordinates as &$c) {
+                $status = 1;
+                $number = 1;
+                if ($number != null || $number != "") {
+                    $c["label"] = $c["label"] . " - " . $number;
+                }
+                $c["status"] = $status;
+            }
+            unset($c);
+
+            $objects = Objects::all();
+
+            return view("floormap.AddCar", compact(
+                "coordinates",
+                "car_scale",
+                "dimension",
+                "floor_image",
+                "active",
+                "floor_id",
+                "label_size",
+                "objects"
+            ));
+        } catch (\Exception $e) {
+            return back()->with([
+                'errortitle' => 'Error',
+                'errormessage' => $e->getMessage()
+            ]);
+        }
+    }
+
+    public function storeCar(Request $request)
+    {
+        try {
+            $validated = $request->validate([
+                "floor_id" => "required|integer|exists:floor_infos,floor_id",
+                "x" => "required|numeric",
+                "y" => "required|numeric",
+                "z" => "nullable|numeric",
+                "a" => "nullable|numeric",
+                "label" => "required|string",
+                "sensor_id" => "required|numeric",
+                "i_color" => "required|string",
+                "v_color" => "required|string",
+                "status" => "required|in:0,1",
+            ]);
+
+            // Get floor
+            $floor = floor_info::findOrFail($validated["floor_id"]);
+
+            // Parse existing coordinates JSON
+            $existing = json_decode($floor->floor_map_coordinate, true) ?? [];
+
+            // Append new data
+            $newSpot = [
+                "x" => $validated["x"],
+                "y" => $validated["y"],
+                "z" => $validated["z"] ?? "0",
+                "a" => $validated["a"] ?? "180",
+                "label" => $validated["label"],
+                "i_color" => $validated["i_color"],
+                "v_color" => $validated["v_color"],
+                "sensor_id" => $validated["sensor_id"],
+                "status" => $validated["status"],
+            ];
+
+            $existing[] = $newSpot;
+
+            // Save back as JSON
+            $floor->floor_map_coordinate = json_encode(
+                $existing,
+                JSON_PRETTY_PRINT
+            );
+            $floor->save();
+
+            return redirect()->route('floorMapDetails', ['floor_id' => $validated['floor_id']])->with([
+                "successtitle" => "Spot Added",
+                "successmessage" => "Car spot added to floor successfully!",
+            ]);
+        } catch (\Exception $e) {
+            return back()->with([
+                "errortitle" => "Error",
+                "errormessage" => $e->getMessage(),
+            ]);
+        }
+    }
+
+
+    public function updateCar(Request $request)
+    {
+        try {
+            $validated = $request->validate([
+                "floor_id" => "required|integer|exists:floor_infos,floor_id",
+                "index" => "required|integer|min:0",
+                "x" => "required|numeric",
+                "y" => "required|numeric",
+                "z" => "nullable|numeric",
+                "a" => "nullable|numeric",
+                "label" => "required|string",
+                "sensor_id" => "required|numeric",
+                "i_color" => "required|string",
+                "v_color" => "required|string",
+                "status" => "required|in:0,1",
+            ]);
+
+            $floor = floor_info::findOrFail($validated["floor_id"]);
+            $spots = json_decode($floor->floor_map_coordinate, true) ?? [];
+
+            if (!isset($spots[$validated["index"]])) {
+                throw new \Exception("Invalid spot selected.");
+            }
+
+            $spots[$validated["index"]] = [
+                "x" => $validated["x"],
+                "y" => $validated["y"],
+                "z" => $validated["z"] ?? "0",
+                "a" => $validated["a"] ?? "180",
+                "label" => $validated["label"],
+                "i_color" => $validated["i_color"],
+                "v_color" => $validated["v_color"],
+                "sensor_id" => $validated["sensor_id"],
+                "status" => $validated["status"],
+            ];
+
+            $floor->floor_map_coordinate = json_encode($spots, JSON_PRETTY_PRINT);
+            $floor->save();
+
+            return redirect()->route('floorMapDetails', ['floor_id' => $validated['floor_id']])->with([
+                "successtitle" => "Spot Updated",
+                "successmessage" => "Car spot updated successfully!",
+            ]);
+        } catch (\Exception $e) {
+            return back()->with([
+                "errortitle" => "Update Error",
+                "errormessage" => $e->getMessage(),
+            ]);
+        }
+    }
+
+    public function deleteCar(Request $request)
+    {
+        try {
+            $validated = $request->validate([
+                "floor_id" => "required|integer|exists:floor_infos,floor_id",
+                "index" => "required|integer|min:0",
+            ]);
+
+            $floor = floor_info::findOrFail($validated["floor_id"]);
+            $spots = json_decode($floor->floor_map_coordinate, true) ?? [];
+
+            if (!isset($spots[$validated["index"]])) {
+                throw new \Exception("Spot not found.");
+            }
+
+            array_splice($spots, $validated["index"], 1); // remove spot
+            $floor->floor_map_coordinate = json_encode($spots, JSON_PRETTY_PRINT);
+            $floor->save();
+
+            return redirect()->route('floorMapDetails', ['floor_id' => $validated['floor_id']])->with([
+                "successtitle" => "Spot Deleted",
+                "successmessage" => "Car spot deleted successfully!",
+            ]);
+        } catch (\Exception $e) {
+            return back()->with([
+                "errortitle" => "Delete Error",
+                "errormessage" => $e->getMessage(),
+            ]);
+        }
     }
 }

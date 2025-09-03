@@ -8,5 +8,5 @@ use Illuminate\Database\Eloquent\Model;
 class detection_type extends Model
 {
     use HasFactory;
-    protected $fillable = ['type'];
+    protected $fillable = ['type', 'name'];
 }

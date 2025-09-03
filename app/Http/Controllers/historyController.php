@@ -2,7 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\eece_data_logging_floor;
+use App\Models\eece_data_logging_site;
 use App\Models\floor_data_by_day;
+use App\Models\floor_info;
 use App\Models\sensor_data_logging;
 use App\Models\site_data_by_day;
 use Carbon\Carbon;
@@ -202,11 +205,288 @@ class historyController extends Controller
         ]];
     }
 
+    public function eecshistoricalData($startDate, $endDate)
+    {
+        $active = 'history';
+        $site_id = Auth::user()->site_id;
+
+        if ($startDate->isSameDay($endDate)) {
+            $floorWiseData = [];
+            $eecsSiteData = eece_data_logging_site::where('site_id', $site_id)->whereDate('created_at', $startDate)->get();
+            $totalIn = 0;
+            $totalOut = 0;
+            $max_count = 0;
+            $min_count = 0;
+            $chartData = [];
+            $columnData = [];
+            if (Auth::user()->chart_view == 1) {
+                $max_count = $eecsSiteData->max('occupied');
+                $min_count = $eecsSiteData->min('occupied');
+                foreach ($eecsSiteData as $eecs) {
+                    $epochTime = (int)str_pad(strtotime($eecs->created_at), 13, 0, STR_PAD_RIGHT);
+                    $chartData[] = [
+                        'date' => $epochTime,
+                        'value' => $eecs->occupied,
+                    ];
+                }
+            }
+            if (Auth::user()->chart_view == 2) {
+                $max_count = $eecsSiteData->max('available');
+                $min_count = $eecsSiteData->min('available');
+                foreach ($eecsSiteData as $eecs) {
+                    $epochTime = (int)str_pad(strtotime($eecs->created_at), 13, 0, STR_PAD_RIGHT);
+                    $chartData[] = [
+                        'date' => $epochTime,
+                        'value' => $eecs->available,
+                    ];
+                }
+            }
+            if (Auth::user()->chart_view == 3) {
+                $HourData = getTodayHoursData();
+                $hoursArray12H = $HourData['hoursArray12H'];
+
+                // Get the current hour (up to now)
+                $currentHour = Carbon::now()->endOfDay()->format('H');
+                $InData = [];
+                $OutData = [];
+
+                for ($hour = 0; $hour <= $currentHour; $hour++) {
+                    $startHour = $startDate->copy()->setHour($hour)->format('Y-m-d H:i:s');
+                    $endHour = $endDate->copy()->setHour($hour)->format('Y-m-d H:i:s');
+
+                    // dd($startHour);
+
+                    // Initialize counters
+                    $inCount = 0;
+                    $outCount = 0;
+                    $filteredEntries = $eecsSiteData->filter(function ($entry) use ($startHour, $endHour) {
+                        return $entry->created_at >= $startHour && $entry->created_at < $endHour;
+                    });
+
+                    foreach ($filteredEntries as $entry) {
+                        if ($entry->count < 0) {
+                            $totalOut += abs($entry->count);
+                            $outCount += abs($entry->count);
+                        } elseif ($entry->count > 0) {
+                            $totalIn += $entry->count;
+                            $inCount += $entry->count;
+                        }
+                    }
+                    $InData[] = $inCount;
+                    $OutData[] = $outCount;
+                }
+                $columnData = [
+                    'hoursArray12H' => $hoursArray12H,
+                    'InData' => $InData,
+                    'OutData' => $OutData,
+                ];
+            }
+
+            $floorWiseData[] = [
+                'name' => getSitename($site_id),
+                'chart' => $chartData,
+                'columndata' => $columnData,
+                'check_in_count' => $totalIn,
+                'check_out_count' => $totalOut,
+                'max_count' => $max_count,
+                'min_count' => $min_count,
+            ];
+
+            // dd($floorWiseData);
+
+            // floor data
+            $floorIds = floor_info::where('site_id', $site_id)->pluck('floor_id')->toArray();
+            // if (!in_array(191, $floorIds)) {
+            //     return "fsfsd";
+            // }
+            // exit;
+            $eecsFloorData = eece_data_logging_floor::where('site_id', $site_id)->whereDate('created_at', $startDate)->get()->groupBy('floor_id');
+            foreach ($floorIds as $floorId) {
+                $totalIn = 0;
+                $totalOut = 0;
+                $max_count = 0;
+                $min_count = 0;
+                $entries = $eecsFloorData->get($floorId, collect()); // empty if no data
+
+                $chartData = [];
+                $columnData = [];
+
+                if ($entries->isNotEmpty()) {
+                    if (Auth::user()->chart_view == 1) {
+                        $max_count = $eecsSiteData->max('occupied');
+                        $min_count = $eecsSiteData->min('occupied');
+                        foreach ($entries as $entry) {
+                            $epochTime = (int) str_pad(strtotime($entry->created_at), 13, 0, STR_PAD_RIGHT);
+                            $chartData[] = [
+                                'date' => $epochTime,
+                                'value' => $entry->occupied,
+                            ];
+                        }
+                    }
+
+                    if (Auth::user()->chart_view == 2) {
+                        $max_count = $eecsSiteData->max('available');
+                        $min_count = $eecsSiteData->min('available');
+                        foreach ($entries as $entry) {
+                            $epochTime = (int) str_pad(strtotime($entry->created_at), 13, 0, STR_PAD_RIGHT);
+                            $chartData[] = [
+                                'date' => $epochTime,
+                                'value' => $entry->available,
+                            ];
+                        }
+                    }
+
+                    if (Auth::user()->chart_view == 3) {
+                        // add your logic here
+                        // column data start
+                        $HourData = getTodayHoursData();
+                        $hoursArray12H = $HourData['hoursArray12H'];
+
+                        // Get the current hour (up to now)
+                        $currentHour = Carbon::now()->endOfDay()->format('H');
+                        $InData = [];
+                        $OutData = [];
+
+                        for ($hour = 0; $hour <= $currentHour; $hour++) {
+                            $startHour = $startDate->copy()->setHour($hour)->format('Y-m-d H:i:s');
+                            $endHour = $endDate->copy()->setHour($hour)->format('Y-m-d H:i:s');
+
+                            // Initialize counters
+                            $inCount = 0;
+                            $outCount = 0;
+                            $filteredEntries = $entries->filter(function ($entry) use ($startHour, $endHour) {
+                                return $entry->created_at >= $startHour && $entry->created_at < $endHour;
+                            });
+
+                            foreach ($filteredEntries as $entry) {
+                                if ($entry->count < 0) {
+                                    $totalOut += abs($entry->count);
+                                    $outCount += abs($entry->count);
+                                } elseif ($entry->count > 0) {
+                                    $totalIn += $entry->count;
+                                    $inCount += $entry->count;
+                                }
+                            }
+                            $InData[] = $inCount;
+                            $OutData[] = $outCount;
+                        }
+                        $columnData = [
+                            'hoursArray12H' => $hoursArray12H,
+                            'InData' => $InData,
+                            'OutData' => $OutData,
+                        ];
+                    }
+                }
+
+                $floorWiseData[] = [
+                    'name' => getFloorname($floorId),
+                    'chart' => $chartData,
+                    'columndata' => $columnData,
+                    'check_in_count' => $totalIn,
+                    'check_out_count' => $totalOut,
+                    'max_count' => $max_count,
+                    'min_count' => $min_count,
+                ];
+            }
+
+            $count = count($floorWiseData);
+            return view('dashboard.eecs-historical-data', compact('floorWiseData', 'startDate', 'endDate', 'active', 'count'));
+        } else {
+            $floorWiseData = [];
+            $eecsSiteData = eece_data_logging_site::where('site_id', $site_id)
+                ->whereBetween('created_at', [$startDate, $endDate])
+                ->get()
+                ->groupBy(function ($item) {
+                    return \Carbon\Carbon::parse($item->created_at)->format('Y-m-d'); // group by date
+                });
+
+
+            $chartData = [];
+
+            foreach ($eecsSiteData as $date => $items) {
+                $epochTime = (int) str_pad(strtotime($date), 13, 0, STR_PAD_RIGHT);
+                if (Auth::user()->chart_view == 2) {
+                    $chartData[] = [
+                        'date'         => $epochTime,
+                        'checkIn'      => $items->min('occupied'),
+                        'checkOut'     => $items->max('occupied'),
+                        // 'minavailable' => $items->min('available'),
+                        // 'maxavailable' => $items->max('available'),
+                    ];
+                } else {
+                    $chartData[] = [
+                        'date'         => $epochTime,
+                        'checkIn'      => $items->where('count', '>', 0)->sum('count'),
+                        'checkOut'     => abs($items->where('count', '<', 0)->sum('count')),
+                        // 'minavailable' => $items->min('available'),
+                        // 'maxavailable' => $items->max('available'),
+                    ];
+                }
+            }
+
+            $floorWiseData[] = [
+                'name' => getSitename($site_id),
+                'chart' => $chartData,
+                'check_in_count' => 0,
+                'check_out_count' => 0,
+                'max_count' => 0,
+                'min_count' => 0,
+            ];
+
+            $floorIds = floor_info::where('site_id', $site_id)->pluck('floor_id')->toArray();
+            $eecsFloorData = eece_data_logging_floor::where('site_id', $site_id)->whereBetween('created_at', [$startDate, $endDate])->get()->groupBy('floor_id');
+            foreach ($floorIds as $floorId) {
+                $entries = $eecsFloorData->get($floorId, collect())->groupBy(function ($item) {
+                    return \Carbon\Carbon::parse($item->created_at)->format('Y-m-d'); // group by date
+                }); // empty if no data
+
+
+                $chartData = [];
+
+                if ($entries->isNotEmpty()) {
+                    foreach ($entries as $date => $items) {
+                        $epochTime = (int) str_pad(strtotime($date), 13, 0, STR_PAD_RIGHT);
+                        if (Auth::user()->chart_view == 2) {
+                            $chartData[] = [
+                                'date'         => $epochTime,
+                                'checkIn'      => $items->min('occupied'),
+                                'checkOut'     => $items->max('occupied'),
+                                // 'minavailable' => $items->min('available'),
+                                // 'maxavailable' => $items->max('available'),
+                            ];
+                        } else {
+                            $chartData[] = [
+                                'date'         => $epochTime,
+                                'checkIn'      => $items->where('count', '>', 0)->sum('count'),
+                                'checkOut'     => abs($items->where('count', '<', 0)->sum('count')),
+                                // 'minavailable' => $items->min('available'),
+                                // 'maxavailable' => $items->max('available'),
+                            ];
+                        }
+                    }
+                }
+
+                $floorWiseData[] = [
+                    'name' => getFloorname($floorId),
+                    'chart' => $chartData,
+                    'check_in_count' => 0,
+                    'check_out_count' => 0,
+                    'max_count' => 0,
+                    'min_count' => 0,
+                ];
+            }
+            // dd($floorWiseData);
+            $count = count($floorWiseData);
+
+            return view('dashboard.history-multiple-days', compact('floorWiseData', 'startDate', 'endDate', 'active', 'count'));
+        }
+    }
+
     public function historicalData(Request $req)
     {
         $site_id = Auth::user()->site_id;
         $siteType = getSiteType($site_id);
-        if ($siteType == "eecs" || $siteType == "slot_reservation") {
+        if ($siteType == "slot_reservation") {
             return redirect('dashboard/404');
         }
         $access = Auth::user()->access;
@@ -224,7 +504,13 @@ class historyController extends Controller
         $endDate = $req->endDate ? Carbon::parse($req->endDate)->endOfDay() : Carbon::yesterday()->endOfDay();
         $active = 'history';
 
+        if ($siteType == "eecs") {
+            return $this->eecshistoricalData($startDate, $endDate);
+            exit;
+        }
+
         if ($startDate->isSameDay($endDate)) {
+
             $floorData = DB::table('floor_data_by_minutes')
                 ->where('site_id', $site_id)
                 ->whereBetween('created_at', [$startDate, $endDate])
@@ -284,6 +570,7 @@ class historyController extends Controller
                 ->get()
                 ->groupBy('floor_id');
 
+            // dd($getData);
             foreach ($getData as $floorId => $entries) {
                 $chartData = [];
                 $check_in_count = 0;

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\detection_type;
+use App\Models\detection_type_site;
 use App\Models\eecs_data;
 use App\Models\eecs_sensor_info;
 use App\Models\floor_info;
@@ -144,5 +145,35 @@ class eecsController extends Controller
         } else {
             return redirect('noaccess');
         }
+    }
+
+    public function DetectionTypeIndex()
+    {
+        $can_edit = Auth::user()->can_edit;
+
+        if ($can_edit == 1) {
+            $detectionData = detection_type_site::all();
+
+            return view('detection.detectiontype', compact('detectionData', 'can_edit'));
+        } else {
+            return redirect('noaccess');
+        }
+    }
+
+    public function getDetectionData($id)
+    {
+        $detectionData = detection_type_site::find($id);
+        // dd($detectionData);
+        return view('detection.editdetectiontype', compact('detectionData'));
+    }
+
+    public function EditDetectionType(Request $request)
+    {
+        // dd($request->all());
+        $updateData = detection_type_site::find($request->detection_id);
+        $updateData->name = $request->name;
+        $updateData->update();
+
+        return redirect()->route('detectiontype')->with('message', 'Data Updated');
     }
 }

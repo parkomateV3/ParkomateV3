@@ -154,6 +154,7 @@
               <option value="sspi">SSPI</option>
               <option value="eecs">EECS</option>
               <option value="findmycar">Find My Car</option>
+              <option value="cpgs">CPGS</option>
               <option value="slot_reservation">Slot Reservation</option>
             </select>
           </div>

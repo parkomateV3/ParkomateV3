@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Jobs\SendSensorMail;
+use App\Models\camera_info;
 use App\Models\display_info;
 use App\Models\displaydata;
 use App\Models\eece_data_logging_floor;
@@ -24,6 +25,7 @@ use App\Models\zonal_info;
 use Illuminate\Support\Facades\File;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 
@@ -62,246 +64,151 @@ class apiController extends Controller
 
     public function getDisplayOld(Request $request)
     {
-        // if ($request->json('display_no') != null || $request->json('display_no') != '') {
-        //     $data = display_info::where('display_unique_no', $request->json('display_no'))->first();
-        if ($request->display_no != null || $request->display_no != '') {
-            $data = display_info::where('display_unique_no', $request->display_no)->first();
-            if (empty($data)) {
-                $emailLogZ = email_log::whereDate('created_at', Carbon::today())->where('sensor_id', $request->display_no)->latest('created_at')->first();
+        $now = now();
+        $today = today();
 
-                if ($emailLogZ) {
-                    $diffInMinutesZ = Carbon::now()->diffInMinutes($emailLogZ->created_at);
-                    // Now you can check like:
-                    if ($diffInMinutesZ > 120) {
-                        // $email = "ajay.ladkat@parkomate.com";
-                        $email = "maheshyangandul@gmail.com";
-                        $mailData = [
-                            'from_email' => $email,
-                            'from_name' => "Display not registered",
-                            'subject' => "Display not registered",
-                            'site_name' => 1,
-                            'floor_name' => 1,
-                            'zonal_name' => 1,
-                            'sensor_unique_no' => 1,
-                            'sensor_name' => 1,
-                            'sensor_id' => $request->display_no,
-                            'status' => 1,
-                            'date' => Carbon::now(),
-                            'device' => 'display'
-                        ];
-                        SendSensorMail::dispatch($email, $mailData);
-                    }
-                } else {
-                    // $email = "ajay.ladkat@parkomate.com";
-                    $email = "maheshyangandul@gmail.com";
-                    $mailData = [
-                        'from_email' => $email,
-                        'from_name' => "Display not registered",
-                        'subject' => "Display not registered",
-                        'site_name' => 1,
-                        'floor_name' => 1,
-                        'zonal_name' => 1,
-                        'sensor_unique_no' => 1,
-                        'sensor_name' => 1,
-                        'sensor_id' => $request->display_no,
-                        'status' => 1,
-                        'date' => Carbon::now(),
-                        'device' => 'display'
-                    ];
-                    SendSensorMail::dispatch($email, $mailData);
-                }
-                return response()->json(['S' => 1, 'C' => 7]);
-            }
-
-            if (isset($data)) {
-                $id = $data->display_id;
-                $displayData = displaydata::where('display_id', $id)->get();
-                $formattedSensors = [];
-                // $colorMap = [
-                //     'red' => 'R',
-                //     'green' => 'G',
-                //     'blue' => 'B',
-                //     'yellow' => 'Y',
-                //     'cyan' => 'C',
-                //     'magenta' => 'M',
-                //     'white' => 'W',
-                // ];
-                if (count($displayData) > 0) {
-
-                    foreach ($displayData as $index => $display) {
-                        // Convert JSON to an associative array
-                        $array = json_decode($display->floor_zonal_sensor_ids, true);
-
-                        // Separate the values for Floor, Zonals, and Sensors
-                        $floors = explode(',', $array['Floor']);  // ['2', '4']
-                        $zonals = explode(',', $array['Zonals']); // ['4', '5']
-                        $sensors = explode(',', $array['Sensors']); // ['4']
-                        // "floors" => $floors[0] == "" ? 'empty' : 'no empty',
-                        $logic_to_calculate_color = explode(',', $display->logic_calculate_number);
-
-                        $sensorDataLog = sensor_data_logging::where('site_id', $display->site_id)->get();
-
-                        $SensorData = [];
-                        $output = "";
-                        $finalOutput = "";
-
-                        $dformat = $display->display_format;
-                        if (str_starts_with(trim($dformat), '{')) {
-                            $decoded = json_decode($dformat, true);
-                            $link = $decoded['link'] ?? null;
-                            $depth = $decoded['depth'] ?? null;
-                            $format = $decoded['format'] ?? null;
-                            $response = Http::get($link);
-                            if ($response->successful()) {
-                                $responseData = $response->json();
-
-                                // Step 3: Extract using $depth
-                                $depthKeys = explode(',', $depth); // ['floors', 'P1', 'available_slots']
-                                $value = $responseData;
-
-                                foreach ($depthKeys as $key) {
-                                    if (is_array($value) && array_key_exists($key, $value)) {
-                                        $value = $value[$key];
-                                    } else {
-                                        $value = null;
-                                        break;
-                                    }
-                                }
-
-                                // return $value;
-
-                                $starCount = substr_count($format, '*');
-                                $output = sprintf("%0{$starCount}d", $value); // Format count to match the star count
-                                $finalOutput = str_replace(str_repeat('*', $starCount), $output, $format);
-
-
-                                // Step 4: Output value
-                                // return "Extracted value: " . $finalOutput;
-                                // return $responseData;
-                            } else {
-                                return "x";
-                            }
-                            // dd($response);
-                        } else {
-                            if ($floors[0] == "" && $zonals[0] == "" && $sensors[0] == "") {
-                                // foreach ($sensorDataLog as $log) {
-                                //     if (in_array($log->color, $logic_to_calculate_color)) {
-                                //         $SensorData[] = 
-                                //     }
-                                // }
-                                $finalOutput = $display->display_format;
-                            } else {
-                                foreach ($sensorDataLog as $log) {
-                                    $sensor_id = getSensorId($log->sensor);
-                                    if (in_array($log->floor_id, $floors)) {
-                                        if (in_array($log->color, $logic_to_calculate_color)) {
-                                            $SensorData[] = $log->sensor;
-                                        }
-                                    }
-                                    if (in_array($log->zonal_id, $zonals)) {
-                                        if (in_array($log->color, $logic_to_calculate_color)) {
-                                            $SensorData[] = $log->sensor;
-                                        }
-                                    }
-                                    if (in_array($sensor_id, $sensors)) {
-                                        if (in_array($log->color, $logic_to_calculate_color)) {
-                                            $SensorData[] = $log->sensor;
-                                        }
-                                    }
-                                }
-                                $uniqueCount = count(array_unique($SensorData));
-
-                                // Count the number of '*'
-                                $starCount = substr_count($display->display_format, '*');
-
-                                // Dynamically format count based on the star count
-                                if ($starCount > 0) {
-                                    if($display->math != null || $display->math != ''){
-                                        $uniqueCount = $uniqueCount + $display->math; // Add math logic if provided
-                                    }
-                                    $output = sprintf("%0{$starCount}d", $uniqueCount); // Format count to match the star count
-                                    $finalOutput = str_replace(str_repeat('*', $starCount), $output, $display->display_format);
-                                }
-                            }
-                        }
-
-                        // $color = $colorMap[strtolower($display["color"])] ?? 'U';
-                        $fontsize = $display->font_size . $display->font;
-                        $formattedSensors[$index + 1] = [
-                            // $formattedSensors[] = [
-                            "I" => $data->intensity,
-                            // "P" => $data->panels,
-                            "C" => $display->coordinates,
-                            "F" => $fontsize,
-                            "T" => $display->color,
-                            // "D" => $display->display_format,
-                            "D" => $finalOutput,
-                            // "color" => $logic_to_calculate_color,
-                            // "D" => $jsonData,
-                        ];
-                    }
-                    // $getDisplayData = display_info::all();
-                    $count = count($formattedSensors);
-                    $symbolData = symbol_on_display::where('display_id', $data->display_id)->get();
-                    if (count($symbolData) > 0) {
-                        foreach ($symbolData as $symbol) {
-
-                            // $symbolColor = $colorMap[strtolower($symbol->color)] ?? 'U';
-
-                            $formattedSensors[$count + 1] = [
-                                // $formattedSensors[] = [
-                                "I" => $data->intensity,
-                                "C" => $symbol->coordinates,
-                                "S" => $symbol->color,
-                                "B" => symbolBinaryData($symbol->symbol_to_show),
-                                "Z" => symbolSize($symbol->symbol_to_show),
-                            ];
-
-                            $count++;
-                        }
-                    }
-
-                    // return response()->json($count)->header('Content-Type', 'application/json');
-                    return response()->json($formattedSensors)->header('Content-Type', 'application/json');
-                    // return response()->json(['S' => 1, 'C' => 200, 'D' => $formattedSensors])->header('Content-Type', 'application/json');
-                } else {
-
-                    //if display data not found
-                    $symbolData = symbol_on_display::where('display_id', $data->display_id)->get();
-                    if (count($symbolData) > 0) {
-                        foreach ($symbolData as $index => $symbol) {
-
-                            // $symbolColor = $colorMap[strtolower($symbol->color)] ?? 'U';
-
-                            $formattedSensors[$index + 1] = [
-                                // $formattedSensors[] = [
-                                "I" => $data->intensity,
-                                "C" => $symbol->coordinates,
-                                "S" => $symbol->color,
-                                "B" => symbolBinaryData($symbol->symbol_to_show),
-                                "Z" => symbolSize($symbol->symbol_to_show),
-                            ];
-                        }
-                        return response()->json($formattedSensors);
-                        // return response()->json(['S' => 1, 'C' => 200, 'D' => $formattedSensors]);
-                    } else {
-                        return response()->json(['1' => 'None']);
-                        // return response()->json(['S' => 0, 'C' => 2]);
-                    }
-                }
-            } else {
-                return response()->json(['1' => 'unr']);
-                // return response()->json(['S' => 0, 'C' => 1]);
-            }
-        } else {
+        if (empty($request->display_no)) {
             return response()->json(['1' => "None"]);
-            // return response()->json(['S' => 0, 'C' => 0]);
         }
 
+        $data = display_info::with(['displaydata', 'symbol_on_display'])
+            ->where('display_unique_no', $request->display_no)
+            ->first();
 
-        // return response()->json($getDisplayData);
-        // return response()->json($request->all());
-        // return response()->json(["data" => "F1 123"]);
+        if (!$data) {
+            // Email logging check (cache today’s logs)
+            $emailLogZ = email_log::whereDate('created_at', $today)
+                ->where('sensor_id', $request->display_no)
+                ->latest('created_at')
+                ->first();
+
+            if (!$emailLogZ || $now->diffInMinutes($emailLogZ->created_at) > 120) {
+                $email = "maheshyangandul@gmail.com";
+                $mailData = [
+                    'from_email' => $email,
+                    'from_name' => "Display not registered",
+                    'subject' => "Display not registered",
+                    'site_name' => 1,
+                    'floor_name' => 1,
+                    'zonal_name' => 1,
+                    'sensor_unique_no' => 1,
+                    'sensor_name' => 1,
+                    'sensor_id' => $request->display_no,
+                    'status' => 1,
+                    'date' => Carbon::now(),
+                    'device' => 'display'
+                ];
+                SendSensorMail::dispatch($email, $mailData);
+            }
+            return response()->json(['S' => 1, 'C' => 7]);
+        }
+
+        // Preload all sensor logs for the site_ids in one query
+        $siteIds = $data->displaydata->pluck('site_id')->unique();
+        $sensorLogsBySite = sensor_data_logging::whereIn('site_id', $siteIds)->get()->groupBy('site_id');
+
+        $formattedSensors = [];
+
+        foreach ($data->displaydata as $index => $display) {
+            $floors = $zonals = $sensors = [];
+            if (!empty($display->floor_zonal_sensor_ids)) {
+                $array = json_decode($display->floor_zonal_sensor_ids, true);
+                $floors = array_filter(explode(',', $array['Floor'] ?? ''));
+                $zonals = array_filter(explode(',', $array['Zonals'] ?? ''));
+                $sensors = array_filter(explode(',', $array['Sensors'] ?? ''));
+            }
+
+            $logicColors = explode(',', $display->logic_calculate_number);
+            $sensorDataLog = $sensorLogsBySite[$display->site_id] ?? collect();
+            $SensorData = [];
+
+            if (str_starts_with(trim($display->display_format), '{')) {
+                // Cached API call
+                $decoded = json_decode($display->display_format, true);
+                $link = $decoded['link'] ?? null;
+                $depth = $decoded['depth'] ?? null;
+                $format = $decoded['format'] ?? null;
+
+                $responseData = Cache::remember("display_api_{$link}", 120, function () use ($link) {
+                    $response = Http::timeout(2)->get($link);
+                    return $response->successful() ? $response->json() : null;
+                });
+
+                $value = $this->getDepthValue($responseData, $depth);
+                $finalOutput = $this->formatOutput($format, $value);
+            } else {
+                foreach ($sensorDataLog as $log) {
+                    $sensor_id = getSensorId($log->sensor);
+                    if (
+                        (in_array($log->floor_id, $floors) ||
+                            in_array($log->zonal_id, $zonals) ||
+                            in_array($sensor_id, $sensors)) &&
+                        in_array($log->color, $logicColors)
+                    ) {
+                        $SensorData[] = $log->sensor;
+                    }
+                }
+
+                $uniqueCount = count(array_unique($SensorData));
+                if (!empty($display->math)) {
+                    $uniqueCount += $display->math;
+                }
+                $finalOutput = $this->formatOutput($display->display_format, $uniqueCount);
+            }
+
+            $formattedSensors[$index + 1] = [
+                "I" => $data->intensity,
+                "C" => $display->coordinates,
+                "F" => $display->font_size . $display->font,
+                "T" => $display->color,
+                "D" => $finalOutput,
+            ];
+        }
+
+        // Add symbols
+        foreach ($data->symbol_on_display as $symbol) {
+            $formattedSensors[] = [
+                "I" => $data->intensity,
+                "C" => $symbol->coordinates,
+                "S" => $symbol->color,
+                "B" => symbolBinaryData($symbol->symbol_to_show),
+                "Z" => symbolSize($symbol->symbol_to_show),
+            ];
+        }
+
+        $data->touch();
+
+        return response()->json($formattedSensors);
+    }
+
+    private function getDepthValue($array, $depth)
+    {
+        if (!$array || !$depth) {
+            return null;
+        }
+
+        $depthKeys = explode(',', $depth);
+        $value = $array;
+
+        foreach ($depthKeys as $key) {
+            if (is_array($value) && array_key_exists($key, $value)) {
+                $value = $value[$key];
+            } else {
+                return null;
+            }
+        }
+
+        return $value;
+    }
+
+    private function formatOutput($format, $value)
+    {
+        $starCount = substr_count($format, '*');
+        if ($starCount > 0) {
+            $output = sprintf("%0{$starCount}d", $value);
+            return str_replace(str_repeat('*', $starCount), $output, $format);
+        }
+        return $format;
     }
 
     public function getDisplay(Request $request)
@@ -389,41 +296,83 @@ class apiController extends Controller
                         $SensorData = [];
                         $output = "";
                         $finalOutput = "";
-                        if ($floors[0] == "" && $zonals[0] == "" && $sensors[0] == "") {
-                            // foreach ($sensorDataLog as $log) {
-                            //     if (in_array($log->color, $logic_to_calculate_color)) {
-                            //         $SensorData[] = 
-                            //     }
-                            // }
-                            $finalOutput = $display->display_format;
-                        } else {
-                            foreach ($sensorDataLog as $log) {
-                                $sensor_id = getSensorId($log->sensor);
-                                if (in_array($log->floor_id, $floors)) {
-                                    if (in_array($log->color, $logic_to_calculate_color)) {
-                                        $SensorData[] = $log->sensor;
+                        $dformat = $display->display_format;
+                        if (str_starts_with(trim($dformat), '{')) {
+                            $decoded = json_decode($dformat, true);
+                            $link = $decoded['link'] ?? null;
+                            $depth = $decoded['depth'] ?? null;
+                            $format = $decoded['format'] ?? null;
+                            $response = Http::get($link);
+                            if ($response->successful()) {
+                                $responseData = $response->json();
+
+                                // Step 3: Extract using $depth
+                                $depthKeys = explode(',', $depth); // ['floors', 'P1', 'available_slots']
+                                $value = $responseData;
+
+                                foreach ($depthKeys as $key) {
+                                    if (is_array($value) && array_key_exists($key, $value)) {
+                                        $value = $value[$key];
+                                    } else {
+                                        $value = null;
+                                        break;
                                     }
                                 }
-                                if (in_array($log->zonal_id, $zonals)) {
-                                    if (in_array($log->color, $logic_to_calculate_color)) {
-                                        $SensorData[] = $log->sensor;
-                                    }
-                                }
-                                if (in_array($sensor_id, $sensors)) {
-                                    if (in_array($log->color, $logic_to_calculate_color)) {
-                                        $SensorData[] = $log->sensor;
-                                    }
-                                }
+
+                                // return $value;
+
+                                $starCount = substr_count($format, '*');
+                                $output = sprintf("%0{$starCount}d", $value); // Format count to match the star count
+                                $finalOutput = str_replace(str_repeat('*', $starCount), $output, $format);
+
+
+                                // Step 4: Output value
+                                // return "Extracted value: " . $finalOutput;
+                                // return $responseData;
+                            } else {
+                                return "x";
                             }
-                            $uniqueCount = count(array_unique($SensorData));
+                            // dd($response);
+                        } else {
+                            if ($floors[0] == "" && $zonals[0] == "" && $sensors[0] == "") {
+                                // foreach ($sensorDataLog as $log) {
+                                //     if (in_array($log->color, $logic_to_calculate_color)) {
+                                //         $SensorData[] = 
+                                //     }
+                                // }
+                                $finalOutput = $display->display_format;
+                            } else {
+                                foreach ($sensorDataLog as $log) {
+                                    $sensor_id = getSensorId($log->sensor);
+                                    if (in_array($log->floor_id, $floors)) {
+                                        if (in_array($log->color, $logic_to_calculate_color)) {
+                                            $SensorData[] = $log->sensor;
+                                        }
+                                    }
+                                    if (in_array($log->zonal_id, $zonals)) {
+                                        if (in_array($log->color, $logic_to_calculate_color)) {
+                                            $SensorData[] = $log->sensor;
+                                        }
+                                    }
+                                    if (in_array($sensor_id, $sensors)) {
+                                        if (in_array($log->color, $logic_to_calculate_color)) {
+                                            $SensorData[] = $log->sensor;
+                                        }
+                                    }
+                                }
+                                $uniqueCount = count(array_unique($SensorData));
 
-                            // Count the number of '*'
-                            $starCount = substr_count($display->display_format, '*');
+                                // Count the number of '*'
+                                $starCount = substr_count($display->display_format, '*');
 
-                            // Dynamically format count based on the star count
-                            if ($starCount > 0) {
-                                $output = sprintf("%0{$starCount}d", $uniqueCount); // Format count to match the star count
-                                $finalOutput = str_replace(str_repeat('*', $starCount), $output, $display->display_format);
+                                // Dynamically format count based on the star count
+                                if ($starCount > 0) {
+                                    if ($display->math != null || $display->math != '') {
+                                        $uniqueCount = $uniqueCount + $display->math; // Add math logic if provided
+                                    }
+                                    $output = sprintf("%0{$starCount}d", $uniqueCount); // Format count to match the star count
+                                    $finalOutput = str_replace(str_repeat('*', $starCount), $output, $display->display_format);
+                                }
                             }
                         }
 
@@ -1210,6 +1159,7 @@ class apiController extends Controller
             // $value = $request->input($key);
 
             $sensorData = eecs_sensor_info::where('sensor_number', $key)->first();
+            $site_id = $sensorData->site_id;
             if ($sensorData) {
                 $eecsData = eecs_data::where('sensor_id', $sensorData->id)->first();
                 if ($eecsData) {
@@ -1218,48 +1168,68 @@ class apiController extends Controller
                     $floorData = floor_info::where('floor_id', $eecsData->from)->first();
                     if ($floorData) {
                         $jsonData = json_decode($floorData->measured_count, true);
+                        $maxcount = json_decode($floorData->max_count, true);
+
+                        $maxTotal = array_sum($maxcount);
+
                         if (isset($jsonData[(string)$type])) {
                             $jsonData[(string)$type] -= $count;
                         }
+                        $measureTotal = array_sum($jsonData);
                         $floorData->measured_count = $jsonData;
                         $floorData->save();
                         $data = [
                             'site_id' => $floorData->site_id,
                             'floor_id' => $floorData->floor_id,
                             'type' => $type,
-                            'count' => -$count
+                            'count' => -$count,
+                            'available' => $maxTotal - $measureTotal,
+                            'occupied' => $measureTotal
                         ];
                         eece_data_logging_floor::create($data);
                     }
                     $floorData = floor_info::where('floor_id', $eecsData->to)->first();
                     if ($floorData) {
                         $jsonData = json_decode($floorData->measured_count, true);
+                        $maxcount = json_decode($floorData->max_count, true);
+
+                        $maxTotal = array_sum($maxcount);
+
                         if (isset($jsonData[(string)$type])) {
                             $jsonData[(string)$type] += $count;
                         }
+                        $measureTotal = array_sum($jsonData);
                         $floorData->measured_count = $jsonData;
                         $floorData->save();
                         $data = [
                             'site_id' => $floorData->site_id,
                             'floor_id' => $floorData->floor_id,
                             'type' => $type,
-                            'count' => $count
+                            'count' => $count,
+                            'available' => $maxTotal - $measureTotal,
+                            'occupied' => $measureTotal
                         ];
                         eece_data_logging_floor::create($data);
                     }
                     if ($eecsData->from == 0) {
+                        $total = getEECSSiteTotal($site_id);
                         $siteData = [
                             'site_id' => $sensorData->site_id,
                             'type' => $type,
-                            'count' => $count
+                            'count' => $count,
+                            'available' => $total[0],
+                            'occupied' => $total[1]
                         ];
                         eece_data_logging_site::create($siteData);
                     }
                     if ($eecsData->to == 0) {
+                        $total = getEECSSiteTotal($site_id);
                         $siteData = [
                             'site_id' => $sensorData->site_id,
                             'type' => $type,
-                            'count' => -$count
+                            'count' => -$count,
+                            'available' => $total[0],
+                            'occupied' => $total[1]
                         ];
                         eece_data_logging_site::create($siteData);
                     }
@@ -1356,6 +1326,38 @@ class apiController extends Controller
             return response()->json(['status' => 1, 'data' => $data]);
         } else {
             return response()->json(['status' => 0, 'message' => 'Data not found']);
+        }
+    }
+
+    public function imagesUpload(Request $request)
+    {
+
+        // return $request->all();
+        if (!empty($request->allFiles())) {
+            $processor_id = getProcessorId($request->processor_id);
+            foreach ($request->allFiles() as $key => $file) {
+                $ip = str_replace('_', '.', $key);
+                $existing = camera_info::where('processor_id', $processor_id)->where('local_ip_address', $ip)->first();
+                // return $existing;
+                if ($existing) {
+                    // $relativePath = 'camera/' . $existing->car_image; // e.g. 'uploads/car.png'
+                    // $oldImagePath = public_path($relativePath);
+                    // if (File::exists($oldImagePath)) {
+                    //     File::delete($oldImagePath);
+                    // }
+
+                    $originalName = $file->getClientOriginalName(); // e.g. car.png
+                    $filename = $originalName;     // prevent name collision
+                    $file->move(public_path('camera'), $filename);
+
+                    $existing->update([
+                        'image' => $filename,
+                    ]);
+                }else{
+                    return "0";
+                }
+            }
+            return "done";
         }
     }
 }

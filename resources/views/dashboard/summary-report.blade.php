@@ -44,7 +44,7 @@
                     <div class="card">
                         <div class="card-body flex flex-col p-1">
                             <div class="card-text h-full ">
-                                <form class="space-y-4" method="POST" action="{{ route('dashboard/summary-report') }}">
+                                <form class="space-y-4" method="POST" action="{{ route('dashboard/summary-report-post') }}">
                                     @csrf
                                     <div class="grid xl:grid-cols-3 grid-cols-1 gap-6">
                                         <div class="card">

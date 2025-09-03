@@ -1,10 +1,12 @@
 <?php
 
 use App\Models\detection_type;
+use App\Models\detection_type_site;
 use App\Models\display_info;
 use App\Models\eecs_device_info;
 use App\Models\eecs_sensor_info;
 use App\Models\floor_info;
+use App\Models\processor_info;
 use App\Models\reservation_device_info;
 use App\Models\role_master;
 use App\Models\sensor_data_logging;
@@ -492,6 +494,16 @@ function getTypeName($id)
     return null; // or handle the case where the type is not found
 }
 
+function getTypeNameForSite($id)
+{
+    $site_id = Auth::user()->site_id;
+    $data = detection_type_site::where('site_id', $site_id)->where('type_id', $id)->first();
+    if ($data) {
+        return $data->name;
+    }
+    return null; // or handle the case where the type is not found
+}
+
 function getDeviceId($id)
 {
     $data = eecs_device_info::find($id);
@@ -551,4 +563,34 @@ function getFloorsData()
         return []; // Return an empty array if no data is found
     }
     return $data;
+}
+
+function getEECSSiteTotal($site_id)
+{
+    // $site_id = Auth::user()->site_id;
+
+    $floorData = floor_info::where('site_id', $site_id)->get();
+    $available = 0;
+    $occupied = 0;
+    foreach ($floorData as $floor) {
+        $measuredcount = json_decode($floor->measured_count, true);
+        $maxcount = json_decode($floor->max_count, true);
+
+        foreach ($maxcount as $key => $max) {
+            $measured = $measuredcount[$key] ?? 0;
+            $occupied += $measured;
+            $available += ($max - $measured);
+        }
+    }
+    $total = [$available, $occupied];
+    return $total;
+}
+
+function getProcessorId($id)
+{
+    $data = processor_info::where('processor_id', $id)->first();
+    if (!$data) {
+        return ''; // Return an empty array if no data is found
+    }
+    return $data->id;
 }

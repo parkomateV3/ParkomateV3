@@ -9,5 +9,5 @@ class eece_data_logging_floor extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['site_id', 'floor_id', 'type', 'count'];
+    protected $fillable = ['site_id', 'floor_id', 'type', 'count', 'available', 'occupied'];
 }

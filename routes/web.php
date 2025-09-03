@@ -2,11 +2,14 @@
 
 use App\Http\Controllers\adminController;
 use App\Http\Controllers\authController;
+use App\Http\Controllers\cameraController;
+use App\Http\Controllers\cameraInfoController;
 use App\Http\Controllers\dashboardController;
 use App\Http\Controllers\displayController;
 use App\Http\Controllers\displaydataController;
 use App\Http\Controllers\displaysymbolController;
 use App\Http\Controllers\eecsController;
+use App\Http\Controllers\eecsDashboardController;
 use App\Http\Controllers\eecsDeviceController;
 use App\Http\Controllers\eecsSensorController;
 use App\Http\Controllers\exportController;
@@ -16,7 +19,9 @@ use App\Http\Controllers\floorMapController;
 use App\Http\Controllers\historyController;
 use App\Http\Controllers\interconnectController;
 use App\Http\Controllers\notificationController;
+use App\Http\Controllers\ObjectController;
 use App\Http\Controllers\OrMapController;
+use App\Http\Controllers\processorController;
 use App\Http\Controllers\QrMapController;
 use App\Http\Controllers\reservationController;
 use App\Http\Controllers\reservationDeviceController;
@@ -26,6 +31,7 @@ use App\Http\Controllers\symbolController;
 use App\Http\Controllers\tableController;
 use App\Http\Controllers\tableEntryController;
 use App\Http\Controllers\testController;
+use App\Http\Controllers\TestParkingController;
 use App\Http\Controllers\zonalController;
 use Illuminate\Support\Facades\Route;
 
@@ -73,6 +79,8 @@ Route::middleware('auth')->group(function () {
     Route::resource('displaysymbol', displaysymbolController::class);
     Route::resource('reservation', reservationController::class);
     Route::resource('table', tableController::class);
+    Route::resource('processor', processorController::class);
+    Route::resource('camerainfo', cameraController::class);
     Route::resource('entries', tableEntryController::class);
     Route::resource('reservation_info', reservationDeviceController::class);
     Route::get('reservation-status-update/{id}', [reservationDeviceController::class, 'reservationStatusUpdate'])->name('reservation-status-update');
@@ -87,6 +95,11 @@ Route::middleware('auth')->group(function () {
 
     Route::post('check_reservation_site', [adminController::class, 'checkReservationSite'])->name('check_reservation_site');
     Route::post('get_slots_data', [adminController::class, 'getSlotsData'])->name('get_slots_data');
+
+    Route::get('detectiontype', [eecsController::class, 'DetectionTypeIndex'])->name('detectiontype');
+    Route::get('detectiontype/{id}', [eecsController::class, 'getDetectionData'])->name('editdetectiontype');
+    Route::post('updatedetectiontype', [eecsController::class, 'EditDetectionType'])->name('updatedetectiontype');
+
 });
 
 //dashboard
@@ -98,7 +111,7 @@ Route::middleware('isDashboard')->group(function () {
     Route::get('dashboard/test', [dashboardController::class, 'test3'])->name('dashboard/test');
 
     Route::get('dashboard/summary-report', [dashboardController::class, 'summaryReport'])->name('dashboard/summary-report');
-    Route::post('dashboard/summary-report', [dashboardController::class, 'summaryReportPost'])->name('dashboard/summary-report');
+    Route::post('dashboard/summary-report-post', [dashboardController::class, 'summaryReportPost'])->name('dashboard/summary-report-post');
     Route::get('dashboard/summary-report-stats/{name}', [dashboardController::class, 'summaryReportStats'])->name('dashboard/summary-report-stats');
     Route::post('/export-summary-report', [exportController::class, 'summaryReportExport'])->name('export-summary-report');
 
@@ -121,6 +134,9 @@ Route::middleware('isDashboard')->group(function () {
     Route::get('dashboard/gettypes/{id}', [dashboardController::class, 'getTypes'])->name('dashboard/gettypes');
     Route::get('dashboard/maxgettypes/{id}', [dashboardController::class, 'maxgetTypes'])->name('dashboard/maxgettypes');
     Route::post('dashboard/updatecount', [dashboardController::class, 'updateCount'])->name('dashboard/updatecount');
+
+    Route::get('dashboard/eecsdashboarddata', [eecsDashboardController::class, 'getEecsSiteData'])->name('eecsdashboarddata');
+    Route::get('dashboard/eecs-detailed-chart-data', [eecsDashboardController::class, 'eecsDetailedChartData'])->name('eecs-detailed-chart-data');
 
     Route::get('dashboard/reservations/{floor_id}', [dashboardController::class, 'reservations'])->name('dashboard/reservations');
     Route::get('dashboard/reservation-data/{floor_id}', [reservationDeviceController::class, 'getReservationFloorData'])->name('dashboard/reservation-data');
@@ -191,3 +207,26 @@ Route::get('dashboard/logout', [dashboardController::class, 'dashboardLogout'])-
 
 // notification
 Route::get('/send-notification', [notificationController::class, 'sendNotification']);
+
+//
+Route::get('/floorMapDetails/{floor_id}', [floorController::class, 'floorMapDetails'])->name('floorMapDetails');
+
+Route::post('/floormap/store-car', [floorController::class, 'storeCar'])->name('floormap.storeCar');
+Route::post('/floormap/update-car', [floorController::class, 'updateCar'])->name('floormap.updateCar');
+Route::post('/floormap/delete-car', [floorController::class, 'deleteCar'])->name('floormap.deleteCar');
+
+
+Route::get('/update_floor_map_settings/{floor_id}', [floorController::class, 'update_floor_map_settings'])
+    ->name('update_floor_map_settings');
+
+Route::post('/update_floor_map_settings_success/{floor_id}', [floorController::class, 'update_floor_map_settings_success'])
+    ->name('update_floor_map_settings_success');
+
+Route::get('addcar/{floor_id}', [floorController::class, 'show_add_car_form'])
+    ->name('addcar');
+
+
+Route::get('/testFloorMapDetails/{floor_id}', [TestParkingController::class, 'testFloorMapDetails'])->name('testFloorMapDetails');
+
+// Object resource routes
+Route::resource('objects', ObjectController::class)->except(['show', 'edit', 'update']);

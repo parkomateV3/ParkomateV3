@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\detection_type;
+use App\Models\detection_type_site;
 use App\Models\eecs_data;
 use App\Models\eecs_device_info;
 use App\Models\eecs_sensor_info;
@@ -110,6 +111,13 @@ class eecsDeviceController extends Controller
                     'detection_type' => $detection,
                 ];
                 eecs_sensor_info::create($insertDataDown);
+
+                $insertDetectionSite = [
+                    'site_id' => $device->site_id,
+                    'type_id' => $detection,
+                    'name' => getTypeName($detection)
+                ];
+                detection_type_site::create($insertDetectionSite);
             }
 
             return redirect()->route('eecsdevice.index')->with('message', 'EECS Device Created Successfully');
@@ -207,6 +215,8 @@ class eecsDeviceController extends Controller
                     $deletedRecords = eecs_sensor_info::where('sensor_number', $sensorNumberDown)->first();
                     eecs_data::where('sensor_id', $deletedRecords->id)->delete();
                     eecs_sensor_info::where('sensor_number', $sensorNumberDown)->delete();
+
+                    detection_type_site::where('site_id', $deviceData->site_id)->where('type_id', $detection)->delete();
                 }
             }
             if ($newSensors) {
@@ -232,6 +242,13 @@ class eecsDeviceController extends Controller
                         'detection_type' => $detection,
                     ];
                     eecs_sensor_info::create($insertDataDown);
+
+                    $insertDetectionSite = [
+                        'site_id' => $deviceData->site_id,
+                        'type_id' => $detection,
+                        'name' => getTypeName($detection)
+                    ];
+                    detection_type_site::create($insertDetectionSite);
                 }
             }
 
@@ -260,6 +277,8 @@ class eecsDeviceController extends Controller
                 $floor->max_count = null;
                 $floor->save();
             }
+
+            detection_type_site::where('site_id', $eecsDevice->site_id)->delete();
 
             eecs_device_info::where('id', $id)->delete();
 

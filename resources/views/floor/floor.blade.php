@@ -62,13 +62,15 @@
             <td>{{ Str::limit($floor->piller_coordinates, 14) }}</td>
             <td>
               @if($can_edit == 1)
-              <form action="{{route('floor.destroy', $floor->floor_id)}}" id="deleteForm-{{ $floor->floor_id }}" onsubmit="return confirmDelete(event, '{{ $floor->floor_id }}');" method="post">
-                @csrf
-                @method('DELETE')
-                <button type="submit" class="btn btn-outline-danger btn-sm">Delete</button>
-              </form>
-              <a href="{{ route('floor.edit', $floor->floor_id) }}" class="btn btn-sm btn-outline-success ">Edit</a><br>
-
+              <div class="d-flex align-items-center">
+                <form action="{{route('floor.destroy', $floor->floor_id)}}" id="deleteForm-{{ $floor->floor_id }}" onsubmit="return confirmDelete(event, '{{ $floor->floor_id }}');" method="post">
+                  @csrf
+                  @method('DELETE')
+                  <button type="submit" class="btn btn-outline-danger btn-sm">Delete</button>
+                </form>
+                <a href="{{ route('floor.edit', $floor->floor_id) }}" class="btn btn-sm btn-outline-success ">Edit</a>
+                <a href="{{ route('floorMapDetails', $floor->floor_id) }}" class="btn btn-outline-info btn-sm">Floor Map</a>
+              </div>
               @endif
             </td>
             <td>

@@ -277,4 +277,9 @@ class adminController extends Controller
             return redirect('noaccess');
         }
     }
+
+    public function getInfoData()
+    {
+        echo "dsdss";
+    }
 }
