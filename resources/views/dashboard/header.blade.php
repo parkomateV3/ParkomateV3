@@ -284,14 +284,6 @@
             </a>
           </li>
           @endif
-          <li>
-            <a href="{{ route('dashboard/editeecs') }}" class="navItem {{$active == 'editeecs' ? 'active' : ''}}">
-              <span class="flex items-center">
-                <iconify-icon class="nav-icon" icon="heroicons-outline:home"></iconify-icon>
-                <span>Camera View</span>
-              </span>
-            </a>
-          </li>
           <li class="smallDeviceMenuController md:hidden block leading-0">
             <a href="{{ route('dashboard/logout') }}" class="btn btn-outline-danger btn-sm my-2 d-block text-center w-full">Logout</a>
           </li>
